@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -103,12 +104,57 @@ public class HttpRequest {
 
     public String getQueryString(String URI){
         return URI.split("\\?")[1];
+
+    }
+
+    public String getHeader(String key) {
+        return header.get(key);
+    }
+
+    public String getPath(){
+        return requestLine.getPath();
+    }
+
+    public HttpMethod getMethod(){
+        return requestLine.getMethod();
+    }
+
+    public boolean getCookieValue(){
+        String cookie = getHeader("Cookie");
+        boolean loginStatus = Boolean.parseBoolean(HttpRequestUtils.parseCookies(cookie).get("logined"));
+        log.debug("loginStatus : {}", loginStatus);
+        return loginStatus;
+    }
+    public String getContentType() {
+        return getHeader("Accept");
+    }
+
+    public boolean isStyleSheet(){
+        if(getContentType() == null) return false;
+       return getContentType().contains("text/css");
+    }
+
+    public int getContentLength(){
+        return Integer.parseInt(getHeader("Content-Length"));
+    }
+
+    private Map<String, String> getRequestBody(BufferedReader br) throws IOException {
+        String requestBody = IOUtils.readData(br, getContentLength());
+        log.debug("requestBody : {}", requestBody);
+        return HttpRequestUtils.parseQueryString(requestBody);
+    }
+
+    public String getParameter(String key){
+        return params.get(key);
     }
 
     @Override
     public String toString() {
         return "HttpRequest{" +
                 "requestHeader=" + requestHeader +
+                "header=" + header +
+                ", params=" + params +
+                ", requestLine=" + requestLine +
                 '}';
     }
 }
