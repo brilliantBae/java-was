@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,32 +17,94 @@ import util.IOUtils;
 
 public class HttpRequest {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
-    // requestHeader 를 map 으로 바꾼다.
-    private Map<String, String> header = new HashMap<>();
-    private Map<String, String> params = new HashMap<>();
-    private RequestLine requestLine;
 
-    public HttpRequest(InputStream in) throws IOException {
+    public List<String> requestHeader = new ArrayList<>();
+    public String[] tokens;
+    public String requestBody;
+    public String requestLine;
+
+    public HttpRequest(InputStream in) throws IOException{
         BufferedReader br = new BufferedReader(new InputStreamReader(in, "UTF-8"));
         String line = br.readLine();
-        requestLine = new RequestLine(line);
-        log.debug(line);
-
-        readHeader(br);
-
-        if(getHeader("Content-Length") != null) {
-            params = getRequestBody(br);
+        requestHeader.add(line);
+        requestLine = requestHeader.get(0);
+        tokens = requestLine.split(" ");
+        while(!"".equals(line)){
+            if(line == null) break;
+            line = br.readLine();
+            requestHeader.add(line);
         }
-        log.debug("\n");
+        if(hasTargetHeader("Content-Length")) {
+            requestBody = getRequestBody(br);
+        }
     }
 
-    private void readHeader(BufferedReader br) throws IOException {
-        String line = br.readLine();
-        if(line == null || line.equals("")) return;
-        log.debug(line);
-        HttpRequestUtils.Pair pair =  HttpRequestUtils.parseHeader(line);
-        header.put(pair.getKey(), pair.getValue());
-        readHeader(br);
+    public boolean getCookieValue(){
+        String cookie = getHeaderValue("Cookie");
+        boolean loginStatus = Boolean.parseBoolean(HttpRequestUtils.parseCookies(cookie).get("logined"));
+        log.debug("loginStatus : {}", loginStatus);
+        return loginStatus;
+    }
+
+    public String getRequestBody() {
+        return requestBody;
+    }
+
+    public List<String> getRequestHeader() {
+        return requestHeader;
+    }
+
+    public String getHTTPMethod(){
+        return tokens[0];
+    }
+
+    public String getURI() {
+        return tokens[1];
+    }
+
+    public String getHTTPVersion() {
+        return tokens[2];
+    }
+
+    public String getContentType() {
+        return getHeaderValue("Accept");
+    }
+
+    public int getContentLength(){
+        return Integer.parseInt(getHeaderValue("Content-Length"));
+    }
+
+    private String getHeaderValue(String header){
+        String headerValue = "";
+        for(String line : requestHeader){
+            if(line.contains(header)) {
+                headerValue = HttpRequestUtils.parseHeader(line).getValue();
+                break;
+            }
+        }
+        return headerValue;
+    }
+
+    public boolean hasTargetHeader(String header){
+        for(String line : requestHeader){
+            if(line.contains(header)) return true;
+        }
+        return false;
+    }
+
+    private String getRequestBody(BufferedReader br) throws IOException {
+        int contentLength = getContentLength();
+        return IOUtils.readData(br, contentLength);
+    }
+
+    public Map<String, String> getRequestParameter(String queryString) {
+        // extract user data
+        return HttpRequestUtils.parseQueryString(queryString);
+    }
+
+    public String getQueryString(String URI){
+        return URI.split("\\?")[1];
+
     }
 
     public String getHeader(String key) {
@@ -61,7 +125,6 @@ public class HttpRequest {
         log.debug("loginStatus : {}", loginStatus);
         return loginStatus;
     }
-
     public String getContentType() {
         return getHeader("Accept");
     }
@@ -88,6 +151,7 @@ public class HttpRequest {
     @Override
     public String toString() {
         return "HttpRequest{" +
+                "requestHeader=" + requestHeader +
                 "header=" + header +
                 ", params=" + params +
                 ", requestLine=" + requestLine +
